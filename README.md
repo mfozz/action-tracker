@@ -22,7 +22,7 @@ Action Tracker
 -----------
 Are you tired of forgetting which actions you've taken during a round? As a DM, are you tired of mentally keeping track of all the actions every player made during a round PLUS all the actions your baddies made? Then, this is the module for you.  
 
-This module D&D 5e module adds action-tracking buttons to the token HUD and the combat tracker. Click the buttons in either location to signal that you've taken a specific action.
+This D&D 5e module adds action-tracking buttons to the token HUD and the combat tracker. Click the buttons in either location to signal that you've taken a specific action.
 
 
 **Feature List**  
