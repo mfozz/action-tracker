@@ -1,5 +1,5 @@
 # action-tracker
-A Foundry VTT module that adds action tracking buttons to the token HUD and the combat tracker
+A Foundry VTT module that adds action-tracking buttons to the token HUD and the combat tracker
 
 ![Foundry Minimum Version](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/mfozz/action-tracker/main/module.json&label=Foundry%20Version&query=$.compatibility.minimum&colorB=orange)
 ![Latest Release](https://img.shields.io/github/v/release/mfozz/action-tracker)
@@ -22,7 +22,7 @@ Action Tracker
 -----------
 Are you tired of forgetting which actions you've taken during a round? As a DM, are you tired of mentally keeping track of all the actions every player made during a round PLUS all the actions your baddies made? As a player, do you just forget whether you've taken that bonus action? Then, this is the module for you.  
 
-This module D&D 5e module adds action tracking buttons to the token HUD and the combat tracker. Click the buttons in either location to signal that you've taken a specific action.
+This module D&D 5e module adds action-tracking buttons to the token HUD and the combat tracker. Click the buttons in either location to signal that you've taken a specific action.
 
 
 **Feature List**  
