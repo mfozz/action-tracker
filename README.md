@@ -30,7 +30,7 @@ This module D&D 5e module adds action-tracking buttons to the token HUD and the 
 - **Tracker Buttons:** Click the icons/buttons in the token HUD to track the actions you've taken. 
 - **Combat Tracker:** The buttons sync between the HUD and the Tracker.
 - **Number of Action Icons:** Choose the number of buttons between 3-5.
-- ** Customization:** Customize when the action reset happens, the look and sound of the icons, and whether they appear in the combat tracker.
+- **Customization:** Customize when the action reset happens, the look and sound of the icons, and whether they appear in the combat tracker.
 
 
 
@@ -38,4 +38,4 @@ This module D&D 5e module adds action-tracking buttons to the token HUD and the 
 **Additional Development Notes (FAQ)**
 -----------
 Does this module conflict with any others?
-- I haven't noticed any conflicts yet, and I usually run 100+ modules and haven't seen a conflict yet. However, modules that modify the token HUD or the combat tracker might conflict.
+- I usually run 100+ modules and haven't seen a conflict yet. However, modules that modify the token HUD or the combat tracker might conflict.
