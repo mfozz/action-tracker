@@ -4,7 +4,7 @@ A Foundry VTT module that adds action tracking buttons to the token HUD and the 
 
 Manual Download:
 -----------
-
+https://github.com/mfozz/action-tracker/releases/latest/download/module.json
 
 
 Action Tracker
