@@ -1,0 +1,84 @@
+.action-tracker {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  background: #3d3d3d;
+  border: 1px solid #282828;
+  position: absolute;
+  top: -7px;
+  left: 51.5%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  pointer-events: auto;
+  border-radius: 5px;
+  box-shadow: 0 0 15px var(--color-shadow-dark);
+}
+
+.action-dot-wrapper {
+  width: 24px;
+  height: 20px;
+  cursor: pointer;
+  position: relative;
+  z-index: 2001;
+  pointer-events: auto;
+}
+
+.action-dot-wrapper svg {
+  border: 1px solid; /* Tint set inline */
+  border-radius: 4px;
+}
+
+.action-dot-wrapper svg.used {
+  opacity: 0.25;
+}
+
+.action-tracker-icons {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.action-dot-wrapper-tracker {
+  display: inline-block;
+  width: 16px;
+  height: 20px; /* Extra height to push tooltip down */
+  position: relative;
+  cursor: pointer;
+}
+
+.action-tracker-icons svg {
+  border: 1px solid; /* Tint set inline, thinner for tracker */
+  border-radius: 2px;
+  position: absolute;
+  top: 0; /* Pin SVG to top, leaving space below */
+}
+
+.action-tracker-icons svg.used {
+  opacity: 0.25;
+}
+
+.action-tooltip {
+  visibility: hidden;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  padding: 5px;
+  border-radius: 4px;
+  position: absolute;
+  z-index: 2002;
+  font-size: 14px;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.action-dot-wrapper:hover .action-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+
