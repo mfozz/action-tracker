@@ -1,8 +1,8 @@
-// Action Tracker Module for Foundry VTT v12, D&D 5e v4+
-// March 14, 2025 (updated with debug setting fix)
+// Action Tracker Module for Foundry VTT v13, D&D 5e v4+
+// July 12, 2025 (updated for v13 AppV2 compatibility)
 
 Hooks.once("init", () => {
-  console.log("Action Tracker | Initializing for Foundry v12, D&D 5e v4+");
+  console.log("Action Tracker | Initializing for Foundry v13, D&D 5e v4+");
 
   game.settings.register("action-tracker", "resetTiming", {
     name: game.i18n.localize("ACTION-TRACKER.ResetTiming"),
@@ -296,7 +296,7 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     actionBar.appendChild(dotWrapper);
   }
 
-  const middleCol = html.find(".col.middle")[0];
+  const middleCol = $(html).find(".col.middle")[0];
   if (middleCol) {
     middleCol.prepend(actionBar);
     if (game.settings.get("action-tracker", "debug")) {
@@ -306,7 +306,7 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     if (game.settings.get("action-tracker", "debug")) {
       console.warn(`Action Tracker | Middle column not found, appending to root`);
     }
-    html[0].prepend(actionBar);
+    html.prepend(actionBar);  // Note: html is HTMLElement, so no [0]
   }
 });
 
@@ -359,7 +359,7 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
       continue;
     }
 
-    const combatantLi = html.find(`li.combatant[data-combatant-id="${combatant.id}"]`);
+    const combatantLi = $(html).find(`li.combatant[data-combatant-id="${combatant.id}"]`);
     if (!combatantLi.length) {
       if (game.settings.get("action-tracker", "debug")) {
         console.warn(`Action Tracker | No LI found for combatant ${combatant.id}`);
