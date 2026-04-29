@@ -81,4 +81,42 @@
   opacity: 1;
 }
 
+.action-tracker-color-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 
+.action-tracker-color-setting input[type="color"] {
+  flex: 0 0 3rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.action-tracker-color-setting input[type="text"] {
+  flex: 1;
+  min-width: 7rem;
+  font-family: var(--font-monospace);
+}
+
+.action-tracker-settings-tools {
+  border-bottom: 1px solid #999;
+  margin: 10px 0;
+  padding-bottom: 10px;
+}
+
+.action-tracker-settings-tools h2 {
+  border: 0;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.action-tracker-settings-tools-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.action-tracker-settings-tools-actions button {
+  flex: 0 0 auto;
+}

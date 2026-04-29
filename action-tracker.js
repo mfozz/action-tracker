@@ -1,8 +1,202 @@
-// Action Tracker Module for Foundry VTT v13, D&D 5e v4+
-// July 12, 2025 (updated for v13 AppV2 compatibility)
+// Action Tracker Module for Foundry VTT v14, D&D 5e v4+
+
+const ACTION_TRACKER_DEFAULT_ICONS = [
+  { image: "icons/svg/combat.svg", sound: "sounds/doors/wood/lock.ogg", text: "Action", tint: "#ff0000" },
+  { image: "icons/svg/upgrade.svg", sound: "sounds/doors/wood/lock.ogg", text: "Bonus Action", tint: "#00ff00" },
+  { image: "icons/svg/lightning.svg", sound: "sounds/doors/wood/lock.ogg", text: "Reaction", tint: "#fff700" },
+  { image: "icons/svg/wing.svg", sound: "sounds/doors/wood/lock.ogg", text: "Move", tint: "#00b3ff" },
+  { image: "icons/svg/acid.svg", sound: "sounds/doors/wood/lock.ogg", text: "Interact", tint: "#ff00ff" }
+];
+
+function getDefaultIconDefinition(index) {
+  return ACTION_TRACKER_DEFAULT_ICONS[index] || {
+    image: "icons/svg/mystery-man.svg",
+    sound: "sounds/doors/wood/lock.ogg",
+    text: `Action ${index + 1}`,
+    tint: "#ffffff"
+  };
+}
+
+function getDefaultIconTint(index) {
+  return getDefaultIconDefinition(index).tint;
+}
+
+function areAllIconTintsBlack() {
+  return ACTION_TRACKER_DEFAULT_ICONS.every((_, i) => game.settings.get("action-tracker", `icon${i}Tint`) === "#000000");
+}
+
+function getIconTint(index) {
+  const fallback = getDefaultIconTint(index);
+  const value = game.settings.get("action-tracker", `icon${index}Tint`);
+  return areAllIconTintsBlack() ? fallback : normalizeHexColor(value, fallback);
+}
+
+function getHookRoot(html) {
+  return html instanceof HTMLElement ? html : html?.[0] ?? null;
+}
+
+function normalizeResetTiming(value) {
+  return value === "roundEnd" ? "roundEnd" : "turnStart";
+}
+
+function getActionTrackerSettingsExport() {
+  return {
+    module: "action-tracker",
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    settings: {
+      resetTiming: normalizeResetTiming(game.settings.get("action-tracker", "resetTiming")),
+      iconCount: game.settings.get("action-tracker", "iconCount"),
+      removeColorWhenUsed: game.settings.get("action-tracker", "removeColorWhenUsed"),
+      enableSounds: game.settings.get("action-tracker", "enableSounds"),
+      showTrackerIcons: game.settings.get("action-tracker", "showTrackerIcons"),
+      debug: game.settings.get("action-tracker", "debug"),
+      icons: ACTION_TRACKER_DEFAULT_ICONS.map((_, i) => ({
+        image: game.settings.get("action-tracker", `icon${i}Image`),
+        sound: game.settings.get("action-tracker", `icon${i}Sound`),
+        text: game.settings.get("action-tracker", `icon${i}Text`),
+        tint: getIconTint(i)
+      }))
+    }
+  };
+}
+
+function downloadActionTrackerSettings() {
+  const data = getActionTrackerSettingsExport();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `action-tracker-settings-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  ui.notifications.info(game.i18n.localize("ACTION-TRACKER.ExportSuccess"));
+}
+
+function validateImportedActionTrackerSettings(data) {
+  if (!data || data.module !== "action-tracker" || typeof data.settings !== "object") {
+    throw new Error(game.i18n.localize("ACTION-TRACKER.ImportInvalidFile"));
+  }
+
+  const settings = data.settings;
+  const normalized = {};
+
+  if (typeof settings.resetTiming === "string") normalized.resetTiming = normalizeResetTiming(settings.resetTiming);
+  if (Number.isInteger(settings.iconCount) && settings.iconCount >= 2 && settings.iconCount <= 5) {
+    normalized.iconCount = settings.iconCount;
+  }
+
+  for (const key of ["removeColorWhenUsed", "enableSounds", "showTrackerIcons", "debug"]) {
+    if (typeof settings[key] === "boolean") normalized[key] = settings[key];
+  }
+
+  if (!Array.isArray(settings.icons)) {
+    throw new Error(game.i18n.localize("ACTION-TRACKER.ImportInvalidIcons"));
+  }
+
+  normalized.icons = settings.icons.slice(0, ACTION_TRACKER_DEFAULT_ICONS.length).map((icon, i) => {
+    if (!icon || typeof icon !== "object") {
+      throw new Error(game.i18n.format("ACTION-TRACKER.ImportInvalidIcon", { index: i + 1 }));
+    }
+
+    const fallback = getDefaultIconDefinition(i);
+    return {
+      image: typeof icon.image === "string" ? icon.image : fallback.image,
+      sound: typeof icon.sound === "string" ? icon.sound : fallback.sound,
+      text: typeof icon.text === "string" ? icon.text : fallback.text,
+      tint: normalizeHexColor(icon.tint, fallback.tint)
+    };
+  });
+
+  return normalized;
+}
+
+async function importActionTrackerSettings(data) {
+  const settings = validateImportedActionTrackerSettings(data);
+
+  for (const [key, value] of Object.entries(settings)) {
+    if (key === "icons") continue;
+    await game.settings.set("action-tracker", key, value);
+  }
+
+  for (let i = 0; i < settings.icons.length; i++) {
+    const icon = settings.icons[i];
+    await game.settings.set("action-tracker", `icon${i}Image`, icon.image);
+    await game.settings.set("action-tracker", `icon${i}Sound`, icon.sound);
+    await game.settings.set("action-tracker", `icon${i}Text`, icon.text);
+    await game.settings.set("action-tracker", `icon${i}Tint`, icon.tint);
+  }
+
+  ui.notifications.info(game.i18n.localize("ACTION-TRACKER.ImportSuccess"));
+}
+
+function readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      try {
+        resolve(JSON.parse(reader.result));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    reader.addEventListener("error", () => reject(reader.error));
+    reader.readAsText(file);
+  });
+}
+
+function addImportExportControls(app, root) {
+  const firstSetting = root.querySelector(`[name="action-tracker.resetTiming"]`)?.closest(".form-group");
+  if (!firstSetting || firstSetting.previousElementSibling?.classList?.contains("action-tracker-settings-tools")) return;
+
+  const tools = document.createElement("div");
+  tools.className = "action-tracker-settings-tools";
+
+  const title = document.createElement("h2");
+  title.textContent = game.i18n.localize("ACTION-TRACKER.ImportExportSettings");
+
+  const actions = document.createElement("div");
+  actions.className = "action-tracker-settings-tools-actions";
+
+  const exportButton = document.createElement("button");
+  exportButton.type = "button";
+  exportButton.innerHTML = `<i class="fa-solid fa-file-export"></i> ${game.i18n.localize("ACTION-TRACKER.ExportSettings")}`;
+  exportButton.addEventListener("click", () => downloadActionTrackerSettings());
+
+  const importButton = document.createElement("button");
+  importButton.type = "button";
+  importButton.innerHTML = `<i class="fa-solid fa-file-import"></i> ${game.i18n.localize("ACTION-TRACKER.ImportSettings")}`;
+
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "application/json,.json";
+  fileInput.hidden = true;
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    if (!file) return;
+
+    try {
+      const data = await readJsonFile(file);
+      await importActionTrackerSettings(data);
+      app.render(true);
+    } catch (e) {
+      console.error("Action Tracker | Failed to import settings", e);
+      ui.notifications.error(e.message || game.i18n.localize("ACTION-TRACKER.ImportFailed"));
+    }
+  });
+
+  importButton.addEventListener("click", () => fileInput.click());
+
+  actions.append(exportButton, importButton, fileInput);
+  tools.append(title, actions);
+  firstSetting.before(tools);
+}
 
 Hooks.once("init", () => {
-  console.log("Action Tracker | Initializing for Foundry v13, D&D 5e v4+");
+  console.log("Action Tracker | Initializing for Foundry v14, D&D 5e v4+");
 
   game.settings.register("action-tracker", "resetTiming", {
     name: game.i18n.localize("ACTION-TRACKER.ResetTiming"),
@@ -12,7 +206,6 @@ Hooks.once("init", () => {
     type: String,
     choices: {
       "turnStart": "Start of Turn",
-      "turnEnd": "End of Turn",
       "roundEnd": "End of Round"
     },
     default: "turnStart"
@@ -26,14 +219,20 @@ Hooks.once("init", () => {
     type: Number,
     range: { min: 2, max: 5, step: 1 },
     default: 3,
-    onChange: value => {
-      canvas.tokens.placeables.forEach(token => {
+    onChange: async value => {
+      const updates = canvas?.tokens?.placeables?.map(token => {
         const flags = {};
         for (let i = 0; i < value; i++) {
           flags[`action${i}`] = { used: false };
         }
-        token.document.update({ flags: { "action-tracker": flags } });
-      });
+        return token.document.update({ flags: { "action-tracker": flags } });
+      }) ?? [];
+
+      const results = await Promise.allSettled(updates);
+      const failures = results.filter(result => result.status === "rejected");
+      if (failures.length && game.settings.get("action-tracker", "debug")) {
+        console.warn(`Action Tracker | Failed to update ${failures.length} token(s) after icon count change`, failures);
+      }
     }
   });
 
@@ -80,16 +279,15 @@ Hooks.once("init", () => {
     default: false // Off by default for production
   });
 
-  const defaultIcons = [
-    { image: "icons/svg/combat.svg", sound: "sounds/doors/wood/lock.ogg", text: "Action", tint: "#ff0000" },
-    { image: "icons/svg/upgrade.svg", sound: "sounds/doors/wood/lock.ogg", text: "Bonus Action", tint: "#00ff00" },
-    { image: "icons/svg/lightning.svg", sound: "sounds/doors/wood/lock.ogg", text: "Reaction", tint: "#fff700" },
-    { image: "icons/svg/wing.svg", sound: "sounds/doors/wood/lock.ogg", text: "Move", tint: "#00b3ff" },
-    { image: "icons/svg/acid.svg", sound: "sounds/doors/wood/lock.ogg", text: "Interact", tint: "#ff00ff" }
-  ];
+  game.settings.register("action-tracker", "restoredDefaultTintsV14", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
 
   for (let i = 0; i < 5; i++) {
-    const def = defaultIcons[i] || { image: "icons/svg/mystery-man.svg", sound: "sounds/doors/wood/lock.ogg", text: `Action ${i + 1}`, tint: "#ffffff" };
+    const def = getDefaultIconDefinition(i);
     
     game.settings.register("action-tracker", `icon${i}Image`, {
       name: game.i18n.localize(`ACTION-TRACKER.Icon${i}Image`),
@@ -135,6 +333,11 @@ Hooks.once("init", () => {
   }
 
   Hooks.on("renderSettingsConfig", (app, html, data) => {
+    const root = getHookRoot(html);
+    if (!root) return;
+
+    addImportExportControls(app, root);
+
     const separators = [
       { before: "action-tracker.icon0Image", title: game.i18n.localize("ACTION-TRACKER.Icon1Settings") },
       { before: "action-tracker.icon1Image", title: game.i18n.localize("ACTION-TRACKER.Icon2Settings") },
@@ -144,40 +347,109 @@ Hooks.once("init", () => {
     ];
 
     separators.forEach(sep => {
-      const setting = html.find(`[name="${sep.before}"]`).closest(".form-group");
-      if (setting.length) {
-        setting.before(`<h2 style="border-bottom: 1px solid #999; margin: 10px 0; padding-bottom: 5px;">${sep.title}</h2>`);
+      const setting = root.querySelector(`[name="${sep.before}"]`)?.closest(".form-group");
+      if (setting && setting.previousElementSibling?.dataset?.actionTrackerSeparator !== sep.before) {
+        const heading = document.createElement("h2");
+        heading.dataset.actionTrackerSeparator = sep.before;
+        heading.textContent = sep.title;
+        heading.style.borderBottom = "1px solid #999";
+        heading.style.margin = "10px 0";
+        heading.style.paddingBottom = "5px";
+        setting.before(heading);
       }
     });
 
     for (let i = 0; i < 5; i++) {
-      const tintInput = html.find(`[name="action-tracker.icon${i}Tint"]`);
-      if (tintInput.length) {
-        const value = game.settings.get("action-tracker", `icon${i}Tint`);
-        tintInput.replaceWith(`
-          <color-picker name="action-tracker.icon${i}Tint" value="${value}">
-            <input type="text" placeholder="">
-            <input type="color">
-          </color-picker>
-        `);
+      const tintInput = root.querySelector(`[name="action-tracker.icon${i}Tint"]`);
+      if (tintInput) {
+        const value = getIconTint(i);
+        const wrapper = document.createElement("div");
+        wrapper.className = "action-tracker-color-setting";
+
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.value = value;
+        colorInput.setAttribute("aria-label", game.i18n.localize(`ACTION-TRACKER.Icon${i}Tint`));
+
+        const textInput = document.createElement("input");
+        textInput.type = "text";
+        textInput.name = `action-tracker.icon${i}Tint`;
+        textInput.value = value;
+        textInput.placeholder = value;
+        textInput.pattern = "#[0-9A-Fa-f]{6}";
+
+        colorInput.addEventListener("input", () => {
+          textInput.value = colorInput.value;
+        });
+
+        textInput.addEventListener("input", () => {
+          const value = normalizeHexColor(textInput.value, null);
+          if (value) colorInput.value = value;
+        });
+
+        wrapper.append(colorInput, textInput);
+        tintInput.replaceWith(wrapper);
       }
     }
   });
 
-  Hooks.once("ready", () => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "modules/action-tracker/action-tracker.css";
-    document.head.appendChild(link);
+  Hooks.once("ready", async () => {
+    if (game.settings.get("action-tracker", "resetTiming") === "turnEnd") {
+      await game.settings.set("action-tracker", "resetTiming", "turnStart");
+      if (game.settings.get("action-tracker", "debug")) {
+        console.log("Action Tracker | Migrated legacy reset timing to Start of Turn");
+      }
+    }
+
+    if (!game.settings.get("action-tracker", "restoredDefaultTintsV14")) {
+      if (areAllIconTintsBlack()) {
+        for (let i = 0; i < ACTION_TRACKER_DEFAULT_ICONS.length; i++) {
+          await game.settings.set("action-tracker", `icon${i}Tint`, getDefaultIconTint(i));
+        }
+        if (game.settings.get("action-tracker", "debug")) {
+          console.log("Action Tracker | Restored default icon tint colors");
+        }
+      }
+
+      await game.settings.set("action-tracker", "restoredDefaultTintsV14", true);
+    }
+
     if (game.settings.get("action-tracker", "debug")) {
-      console.log("Action Tracker | CSS forced load");
+      console.log("Action Tracker | Ready");
     }
   });
 });
 
 // SVG caching for performance
 const svgCache = new Map();
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  return typeof value === "string" && value.match(/^#[0-9A-Fa-f]{6}$/) ? value : fallback;
+}
+
+async function playActionSound(src) {
+  if (!src) return;
+
+  try {
+    const helper = globalThis.foundry?.audio?.AudioHelper ?? globalThis.AudioHelper;
+    if (helper?.play) {
+      await helper.play({ src, volume: 0.5 }, false);
+      return;
+    }
+
+    const audio = new Audio(src);
+    audio.volume = 0.5;
+    await audio.play();
+  } catch (e) {
+    if (game.settings.get("action-tracker", "debug")) {
+      console.warn(`Action Tracker | Failed to play sound (${src})`, e);
+    }
+  }
+}
+
 async function getSvgElement(image, tint, used, removeColor, size = "20px") {
+  tint = normalizeHexColor(tint);
+
   if (!svgCache.has(image)) {
     try {
       const response = await fetch(image);
@@ -249,10 +521,8 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     const image = game.settings.get("action-tracker", `icon${i}Image`);
     const text = game.settings.get("action-tracker", `icon${i}Text`);
     const sound = game.settings.get("action-tracker", `icon${i}Sound`);
-    let tint = game.settings.get("action-tracker", `icon${i}Tint`);
+    const tint = getIconTint(i);
     const used = token.document.getFlag("action-tracker", `action${i}`)?.used || false;
-
-    if (!tint.match(/^#[0-9A-Fa-f]{6}$/)) tint = "#ffffff";
 
     const dotWrapper = document.createElement("div");
     dotWrapper.className = "action-dot-wrapper";
@@ -271,7 +541,8 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
       if (game.settings.get("action-tracker", "debug")) {
         console.log(`Action Tracker | Clicked HUD dot ${i} for ${token.name}`);
       }
-      const newState = !used;
+      const currentUsed = token.document.getFlag("action-tracker", `action${i}`)?.used || false;
+      const newState = !currentUsed;
       await token.document.setFlag("action-tracker", `action${i}.used`, newState);
       svgElement.classList.toggle("used", newState);
       if (removeColor) {
@@ -281,7 +552,7 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
         });
         svgElement.style.borderColor = newColor;
       }
-      if (enableSounds) AudioHelper.play({ src: sound, volume: 0.5 });
+      if (enableSounds) await playActionSound(sound);
       if (game.combat && ui.combat) ui.combat.render(true);
       if (ui.controls.hud?.token?.object === token) ui.controls.hud.token.render(true);
     });
@@ -296,7 +567,10 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     actionBar.appendChild(dotWrapper);
   }
 
-  const middleCol = $(html).find(".col.middle")[0];
+  const root = getHookRoot(html);
+  if (!root) return;
+
+  const middleCol = root.querySelector(".col.middle");
   if (middleCol) {
     middleCol.prepend(actionBar);
     if (game.settings.get("action-tracker", "debug")) {
@@ -306,7 +580,7 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     if (game.settings.get("action-tracker", "debug")) {
       console.warn(`Action Tracker | Middle column not found, appending to root`);
     }
-    html.prepend(actionBar);  // Note: html is HTMLElement, so no [0]
+    root.prepend(actionBar);
   }
 });
 
@@ -328,6 +602,9 @@ function getIconState(combatant, actionIndex) {
 }
 
 Hooks.on("renderCombatTracker", async (tracker, html, data) => {
+  const root = getHookRoot(html);
+  if (!root) return;
+
   if (game.settings.get("action-tracker", "debug")) {
     console.log("Action Tracker | Rendering Combat Tracker");
   }
@@ -359,24 +636,23 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
       continue;
     }
 
-    const combatantLi = $(html).find(`li.combatant[data-combatant-id="${combatant.id}"]`);
-    if (!combatantLi.length) {
+    const combatantLi = root.querySelector(`li.combatant[data-combatant-id="${combatant.id}"]`);
+    if (!combatantLi) {
       if (game.settings.get("action-tracker", "debug")) {
         console.warn(`Action Tracker | No LI found for combatant ${combatant.id}`);
       }
       continue;
     }
 
-    const nameElement = combatantLi.find(".token-name");
-    if (!nameElement.length) {
+    const nameElement = combatantLi.querySelector(".token-name");
+    if (!nameElement) {
       if (game.settings.get("action-tracker", "debug")) {
         console.warn(`Action Tracker | No .token-name found for combatant ${combatant.id}`);
       }
       continue;
     }
 
-    const existingIconBar = combatantLi.find(".action-tracker-icons");
-    if (existingIconBar.length) existingIconBar.remove();
+    combatantLi.querySelector(".action-tracker-icons")?.remove();
 
     const iconBar = document.createElement("div");
     iconBar.className = "action-tracker-icons";
@@ -385,10 +661,8 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
       const image = game.settings.get("action-tracker", `icon${i}Image`);
       const text = game.settings.get("action-tracker", `icon${i}Text`);
       const sound = game.settings.get("action-tracker", `icon${i}Sound`);
-      let tint = game.settings.get("action-tracker", `icon${i}Tint`);
+      const tint = getIconTint(i);
       const { used } = getIconState(combatant, i);
-
-      if (!tint.match(/^#[0-9A-Fa-f]{6}$/)) tint = "#ffffff";
 
       const svgElement = await getSvgElement(image, tint, used, removeColor, "16px");
 
@@ -411,7 +685,8 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
         if (game.settings.get("action-tracker", "debug")) {
           console.log(`Action Tracker | Clicked tracker dot ${i} for ${tokenDoc.name}`);
         }
-        const newState = !used;
+        const currentUsed = tokenDoc.getFlag("action-tracker", `action${i}`)?.used || false;
+        const newState = !currentUsed;
         await tokenDoc.setFlag("action-tracker", `action${i}.used`, newState);
         svgElement.classList.toggle("used", newState);
         if (removeColor) {
@@ -421,7 +696,7 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
           });
           svgElement.style.borderColor = newColor;
         }
-        if (enableSounds) AudioHelper.play({ src: sound, volume: 0.5 });
+        if (enableSounds) await playActionSound(sound);
         if (game.combat && ui.combat) ui.combat.render(true);
       });
 
@@ -432,8 +707,8 @@ Hooks.on("renderCombatTracker", async (tracker, html, data) => {
   }
 });
 
-Hooks.on("updateCombat", (combat, update, options, userId) => {
-  const resetTiming = game.settings.get("action-tracker", "resetTiming");
+Hooks.on("updateCombat", async (combat, update, options, userId) => {
+  const resetTiming = normalizeResetTiming(game.settings.get("action-tracker", "resetTiming"));
   const currentToken = combat.combatant?.token?.object;
 
   if (game.settings.get("action-tracker", "debug")) {
@@ -448,61 +723,45 @@ Hooks.on("updateCombat", (combat, update, options, userId) => {
   }
 
   if (resetTiming === "turnStart" && update.turn !== undefined) {
-    resetActions(currentToken);
-  } else if (resetTiming === "turnEnd" && update.turn !== undefined && combat.previous.turn !== undefined) {
-    const previousToken = combat.previous.token?.object;
-    if (previousToken && previousToken.document) resetActions(previousToken);
-    else if (game.settings.get("action-tracker", "debug")) {
-      console.warn("Action Tracker | No valid previous token for turnEnd reset");
-    }
+    await resetActions(currentToken);
   } else if (resetTiming === "roundEnd" && update.round !== undefined && update.turn === 0) {
-    combat.combatants.forEach(c => {
+    const resets = combat.combatants.map(c => {
       const token = c.token?.object;
-      if (token && token.document) resetActions(token);
-      else if (game.settings.get("action-tracker", "debug")) {
+      if (token && token.document) return resetActions(token);
+      if (game.settings.get("action-tracker", "debug")) {
         console.warn(`Action Tracker | Invalid token in combatant: ${c.name}`);
       }
+      return undefined;
     });
+    await Promise.allSettled(resets.filter(Boolean));
   }
 });
 
-Hooks.on("deleteCombat", (combat, options, userId) => {
+Hooks.on("deleteCombat", async (combat, options, userId) => {
   if (game.settings.get("action-tracker", "debug")) {
     console.log("Action Tracker | Combat ended - resetting all icons");
   }
-  combat.combatants.forEach(c => {
+  const resets = combat.combatants.map(c => {
     const token = canvas.tokens.get(c.tokenId);
-    if (token && token.document) resetActions(token);
-    else if (game.settings.get("action-tracker", "debug")) {
+    if (token && token.document) return resetActions(token);
+    if (game.settings.get("action-tracker", "debug")) {
       console.warn(`Action Tracker | No token found for combatant ${c.name} on combat end`);
     }
+    return undefined;
   });
+  await Promise.allSettled(resets.filter(Boolean));
 });
 
-function resetActions(token) {
+async function resetActions(token) {
   const iconCount = game.settings.get("action-tracker", "iconCount");
   const flags = {};
   for (let i = 0; i < iconCount; i++) {
     flags[`action${i}`] = { used: false };
   }
-  token.document.update({ flags: { "action-tracker": flags } });
+  await token.document.update({ flags: { "action-tracker": flags } });
   if (game.settings.get("action-tracker", "debug")) {
     console.log(`Action Tracker | Reset icons for ${token.name}`);
   }
   if (game.combat && ui.combat) ui.combat.render(true);
   if (ui.controls.hud?.token?.object === token) ui.controls.hud.token.render(true);
-}
-
-function hueFromHex(hex) {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h;
-  if (max === min) h = 0;
-  else if (max === r) h = (60 * ((g - b) / (max - min)) + 360) % 360;
-  else if (max === g) h = 60 * ((b - r) / (max - min)) + 120;
-  else h = 60 * ((r - g) / (max - min)) + 240;
-  return h;
 }
